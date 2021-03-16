@@ -12,7 +12,7 @@
  *  - pune PIN 2 la ground si reseteaza Arduino-ul (buton sau power on/off)
  *  - dupa ce configuratia se reseteaza, LED-ul de pe Arduino incepe sa clipeasca.
  *  - pune PIN 2 floating (neconectat) si reseteaza Arduino-ul din nou
- *  
+ *
  *  Configuratia default:
  *  - MAC address: DE:AD:BE:EF:FE:ED
  *  - IP address: 192.168.5.39
@@ -67,7 +67,7 @@ const byte maxLineLength = 80;
 void TelnetSay(const char *format...)
 {
   static char buf[maxLineLength];
-  
+
   va_list args;
   va_start(args, format);
   vsnprintf(buf, maxLineLength, format, args);
@@ -80,15 +80,15 @@ void TelnetSay(const __FlashStringHelper *format...)
 {
   static char formatBuf[maxLineLength];
   static char lineBuf[maxLineLength];
-  
+
   PGM_P p = reinterpret_cast<PGM_P>(format);
   size_t n = 0;
-  while (n < maxLineLength - 1) 
+  while (n < maxLineLength - 1)
   {
     formatBuf[n++] = pgm_read_byte(p++);
   }
   formatBuf[n] = 0;
-    
+
   va_list args;
   va_start(args, format);
   vsnprintf(lineBuf, maxLineLength, formatBuf, args);
@@ -103,15 +103,15 @@ void _DebugSay(const __FlashStringHelper *format...)
   static char lineBuf[maxLineLength];
   static char lastLineBuf[maxLineLength] = { 0 };
   static bool repetitions = false;
-  
+
   PGM_P p = reinterpret_cast<PGM_P>(format);
   size_t n = 0;
-  while (n < maxLineLength - 1) 
+  while (n < maxLineLength - 1)
   {
     formatBuf[n++] = pgm_read_byte(p++);
   }
   formatBuf[n] = 0;
-    
+
   va_list args;
   va_start(args, format);
   vsnprintf(lineBuf, maxLineLength, formatBuf, args);
@@ -130,7 +130,7 @@ void _DebugSay(const __FlashStringHelper *format...)
   }
   memcpy(lastLineBuf, lineBuf, maxLineLength);
 
-  Serial.print(lineBuf);  
+  Serial.print(lineBuf);
 }
 
 void FactoryReset()
@@ -151,7 +151,7 @@ void ReallocateDeviceArrays()
   free(targetFlap);
   free(pendingSteps);
   free(lastHallReading);
-  
+
   size_t size = sizeof(*devices) * config.numDevices;
   devices = (DeviceConfig *)malloc(size);
   memset(devices, 0, size);
@@ -203,23 +203,23 @@ void InitializeSteppers()
 {
   for (int i = 0; i < config.numDevices; ++i)
   {
-    
-    Stepper *s = new Stepper(config.stepsPerRevolution, 
+
+    Stepper *s = new Stepper(config.stepsPerRevolution,
                              devices[i].stepperPins[0],
                              devices[i].stepperPins[2],  // sic
                              devices[i].stepperPins[1],  // sic
-                             devices[i].stepperPins[3]); 
+                             devices[i].stepperPins[3]);
     steppers[i] = s;
     pinMode(devices[i].hallPin, INPUT);
     steppers[i]->setSpeed(config.stepperSpeed);
-    
+
     // set parameters to reset to hall sensor
     pendingSteps[i] = -1;
     currentFlap[i] = config.flapsPerRevolution - 1;
     targetFlap[i] = 0;
     lastHallReading[i] = HIGH;
   }
-  
+
   // perform hall reset
   bool allSteppersReset = false;
   while (!allSteppersReset)
@@ -280,7 +280,7 @@ void RunDeviceSteps(int deviceId)
     }
   }
 
-  // did we reach a new flap?  
+  // did we reach a new flap?
   if (pendingSteps[deviceId] == 0)
   {
     ++currentFlap[deviceId];
@@ -298,7 +298,7 @@ void RunDeviceSteps(int deviceId)
 void RunDevice(int deviceId)
 {
   RunDeviceSteps(deviceId);
-  
+
   if (pendingSteps[deviceId] == 0 &&
       currentFlap[deviceId] != targetFlap[deviceId])
   {
@@ -384,7 +384,7 @@ int CharacterIndex(const char ch)
 void InitializeConfigServer()
 {
   IPAddress ipAddress(config.ip[0], config.ip[1], config.ip[2], config.ip[3]);
-  
+
   Ethernet.init(10);
   Ethernet.begin(config.mac, ipAddress);
   configServer.begin();
@@ -433,6 +433,7 @@ void InterpretInput()
     TelnetSay(F("The following commands are available:\r\n"));
     TelnetSay(F(" CALI - calibrate the Hall effect sensor offset\r\n"));
     TelnetSay(F(" DISP - display a message on the flap display\r\n"));
+    TelnetSay(F(" GOTO - make a flap go to a specific position\r\n"));
     TelnetSay(F(" HELP - display this help message\r\n"));
     TelnetSay(F(" SAVE - save the current operating configuration\r\n"));
     TelnetSay(F(" SET  - set an operating parameter\r\n"));
@@ -450,6 +451,11 @@ void InterpretInput()
     TelnetSay(F("Syntax: DISP <message>\r\n"));
     TelnetSay(F("All characters after the first 5 characters of the command ('DISP ') are\r\n"));
     TelnetSay(F("interpreted as the message, and do not need to be surrounded with quotes.\r\n"));
+  }
+  else if (currentInput == "HELP GOTO")
+  {
+    TelnetSay(F("The GOTO command makes a specific motor go to a specific position.\r\n"));
+    TelnetSay(F("Syntax: GOTO <device_id> <position>\r\n"));
   }
   else if (currentInput == "HELP HELP")
   {
@@ -492,6 +498,10 @@ void InterpretInput()
   {
     CommandDisp();
   }
+  else if (currentInput.startsWith("GOTO ", 0))
+  {
+    CommandGoto();
+  }
   else if (currentInput == "SAVE")
   {
     CommandSave();
@@ -514,7 +524,7 @@ void CommandCali()
 {
   TelnetSay(F("Not yet implemented.\r\n"));
   return;
-  
+
   String idStr = currentInput.substring(5);
   byte id;
   if (idStr[0] == '0' && idStr.length() == 1)
@@ -526,7 +536,7 @@ void CommandCali()
     id = idStr.toInt();
     if (id == 0)
     {
-      TelnetSay(F("Unrecognized device id '%s'.\r\n"), idStr.c_str()); 
+      TelnetSay(F("Unrecognized device id '%s'.\r\n"), idStr.c_str());
     }
   }
   TelnetSay(F("Zeroing device..."));
@@ -539,7 +549,7 @@ void CommandDisp()
     TelnetSay(F("Invalid syntax, missing message.\r\n"));
     return;
   }
-  
+
   String msgStr = currentInput.substring(5);
   if (msgStr.length() > config.numDevices)
   {
@@ -551,10 +561,22 @@ void CommandDisp()
   }
 }
 
+void CommandGoto()
+{
+  int id, pos;
+  int matches = sscanf(currentInput.c_str(), "GOTO %d %d", &id, &pos);
+  if (pos != 2)
+  {
+    TelnetSay(F("Invalid syntax parsing GOTO command."));
+    return;
+  }
+  targetFlap[id] = pos;
+}
+
 void CommandSave()
 {
   WriteConfiguration();
-  TelnetSay(F("Current configuration stored to EEPROM.\r\n")); 
+  TelnetSay(F("Current configuration stored to EEPROM.\r\n"));
 }
 
 template <typename T>
@@ -569,7 +591,7 @@ void SetConfigFromInput(T *variable, int prefixLength)
   else
   {
     *variable = val;
-  }  
+  }
 }
 
 void CommandSet()
@@ -612,7 +634,7 @@ void CommandSet()
   }
   else if (currentInput.startsWith("SET SPF "))
   {
-    SetConfigFromInput(&config.stepsPerFlap, 8);      
+    SetConfigFromInput(&config.stepsPerFlap, 8);
   }
   else if (currentInput.startsWith("SET FPR "))
   {
@@ -631,9 +653,9 @@ void CommandSet()
   {
     DeviceConfig cfg;
     int devIndex;
-    int matches = sscanf(currentInput.c_str(), 
-                         "SET DEV %d %d %d %d %d %d %d", 
-                         &devIndex, 
+    int matches = sscanf(currentInput.c_str(),
+                         "SET DEV %d %d %d %d %d %d %d",
+                         &devIndex,
                          &cfg.stepperPins[0], &cfg.stepperPins[1], &cfg.stepperPins[2], &cfg.stepperPins[3],
                          &cfg.hallPin, &cfg.hallOffset);
     if (matches == 7)
@@ -647,7 +669,7 @@ void CommandSet()
         TelnetSay("Invalid device number.\r\n");
       }
     }
-    else 
+    else
     {
       TelnetSay("Error parsing values.\r\n");
     }
@@ -679,7 +701,7 @@ void CommandShow()
       TelnetSay(F("\r\nDevice %d\r\n"), i);
       TelnetSay(F("  motorPins: %d %d %d %d\r\n"), devices[i].stepperPins[0], devices[i].stepperPins[1],
                                                  devices[i].stepperPins[2], devices[i].stepperPins[3]);
-      TelnetSay(F("  hallPin: %d\r\n"), devices[i].hallPin);                                      
+      TelnetSay(F("  hallPin: %d\r\n"), devices[i].hallPin);
       TelnetSay(F("  hallOffset: %d\r\n"), devices[i].hallOffset);
     }
   }
@@ -716,7 +738,7 @@ void setup()
   DebugSay(F("Setup done.\n"));
 }
 
-void loop() 
+void loop()
 {
   RunConfigServer();
   for (int d = 0; d < config.numDevices; ++d)
