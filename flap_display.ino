@@ -456,6 +456,7 @@ void InterpretInput()
   {
     TelnetSay(F("The GOTO command makes a specific motor go to a specific position.\r\n"));
     TelnetSay(F("Syntax: GOTO <device_id> <position>\r\n"));
+    TelnetSay(F("Use the device id -1 if you want the command to apply to all configured devices.\r\n"));
   }
   else if (currentInput == "HELP HELP")
   {
