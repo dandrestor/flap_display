@@ -570,7 +570,21 @@ void CommandGoto()
     TelnetSay(F("Invalid syntax parsing GOTO command."));
     return;
   }
-  targetFlap[id] = pos;
+  if (id == -1)
+  {
+    for (int i = 0; i < config.numDevices; ++i)
+    {
+      targetFlap[i] = pos;
+    }
+  }
+  else if (id >= 0 && id < config.numDevices)
+  {
+    targetFlap[id] = pos;
+  }
+  else
+  {
+    TelnetSay(F("Invalid device ID.\r\n"));
+  }
 }
 
 void CommandSave()
