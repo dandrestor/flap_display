@@ -565,7 +565,7 @@ void CommandGoto()
 {
   int id, pos;
   int matches = sscanf(currentInput.c_str(), "GOTO %d %d", &id, &pos);
-  if (pos != 2)
+  if (matches != 2)
   {
     TelnetSay(F("Invalid syntax parsing GOTO command."));
     return;
