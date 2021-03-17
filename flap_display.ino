@@ -3,7 +3,7 @@
 #include <Ethernet.h>
 #include <EEPROM.h>
 
-#define ENABLE_DEBUG
+//#define ENABLE_DEBUG
 
 /********** RESET ***************/
 
@@ -28,7 +28,7 @@
 #ifdef ENABLE_DEBUG
 #define DebugSay(...) _DebugSay(__VA_ARGS__)
 #else
-#define DEBUG(X) (void *)0
+#define DebugSay(...) (void *)0
 #endif
 
 struct DeviceConfig
@@ -433,7 +433,7 @@ void InterpretInput()
     TelnetSay(F("The following commands are available:\r\n"));
     TelnetSay(F(" CALI - calibrate the Hall effect sensor offset\r\n"));
     TelnetSay(F(" DISP - display a message on the flap display\r\n"));
-    TelnetSay(F(" GOTO - make a flap go to a specific position\r\n"));
+    TelnetSay(F(" GOTO - move a device to a specific position\r\n"));
     TelnetSay(F(" HELP - display this help message\r\n"));
     TelnetSay(F(" SAVE - save the current operating configuration\r\n"));
     TelnetSay(F(" SET  - set an operating parameter\r\n"));
@@ -454,9 +454,9 @@ void InterpretInput()
   }
   else if (currentInput == "HELP GOTO")
   {
-    TelnetSay(F("The GOTO command makes a specific motor go to a specific position.\r\n"));
-    TelnetSay(F("Syntax: GOTO <device_id> <position>\r\n"));
-    TelnetSay(F("Use the device id -1 if you want the command to apply to all configured devices.\r\n"));
+    TelnetSay(F("The GOTO command makes a specific device go to a specific position.\r\n"));
+    TelnetSay(F("Syntax: GOTO <position> [device_id]\r\n"));
+    TelnetSay(F("The parameter <device_id> is optional. Omit it to move all configured devices.\r\n"));
   }
   else if (currentInput == "HELP HELP")
   {
@@ -565,12 +565,26 @@ void CommandDisp()
 void CommandGoto()
 {
   int id, pos;
-  int matches = sscanf(currentInput.c_str(), "GOTO %d %d", &id, &pos);
-  if (matches != 2)
+  int matches = sscanf(currentInput.c_str(), "GOTO %d %d", &pos, &id);
+  if (matches < 1)
   {
-    TelnetSay(F("Invalid syntax parsing GOTO command."));
+    TelnetSay(F("Invalid syntax parsing GOTO command.\r\n"));
     return;
   }
+  if (pos < 0 || pos >= config.flapsPerRevolution) {
+    TelnetSay(F("Invalid position %d.\r\n"), pos);
+    return;
+  }
+  if (matches == 1)
+  {
+    id = -1;
+  }
+  else if (id < 0 || id >= config.numDevices)
+  {
+    TelnetSay(F("Invalid device ID %d.\r\n"), id);
+    return;
+  }
+
   if (id == -1)
   {
     for (int i = 0; i < config.numDevices; ++i)
@@ -578,13 +592,9 @@ void CommandGoto()
       targetFlap[i] = pos;
     }
   }
-  else if (id >= 0 && id < config.numDevices)
-  {
-    targetFlap[id] = pos;
-  }
   else
   {
-    TelnetSay(F("Invalid device ID.\r\n"));
+    targetFlap[id] = pos;
   }
 }
 
