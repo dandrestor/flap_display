@@ -555,13 +555,16 @@ void CommandCali()
     return;
   }
 
+  DebugSay(F("Starting calibration process for device id %d\n"), id);
   TelnetSay(F("Zeroing device..."));
   while (digitalRead(devices[id].hallPin) == HIGH)
   {
+    DebugSay(F("HALL high, advancing.\n"));
     steppers[id]->step(1);
   }
   while (digitalRead(devices[id].hallPin) == LOW)
   {
+    DebugSay(F("HALL low, advancing.\n"));
     steppers[id]->step(1);
   }
   TelnetSay(F("Done.\r\n"));
