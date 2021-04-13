@@ -432,6 +432,7 @@ void InterpretInput()
   {
     TelnetSay(F("The following commands are available:\r\n"));
     TelnetSay(F(" CALI - calibrate the Hall effect sensor offset\r\n"));
+    TelnetSay(F(" CALS - set Hall effect calibration values\r\n"));
     TelnetSay(F(" DISP - display a message on the flap display\r\n"));
     TelnetSay(F(" GOTO - move a device to a specific position\r\n"));
     TelnetSay(F(" HELP - display this help message\r\n"));
@@ -444,6 +445,11 @@ void InterpretInput()
   {
     TelnetSay(F("The CALI command runs a calibration cycle for a specific device.\r\n"));
     TelnetSay(F("Syntax: CALI <device_id>\r\n"));
+  }
+  else if (currentInput == "HELP CALS")
+  {
+    TelnetSay(F("The CALS command allows you to set values obtained with the CALI command.\r\n"));
+    TelnetSay(F("Syntax: CALS <device_id> <first_value> <hall_value> <second_value>"));
   }
   else if (currentInput == "HELP DISP")
   {
@@ -495,6 +501,10 @@ void InterpretInput()
   {
     CommandCali();
   }
+  else if (currentInput.startsWith("CALS ", 0))
+  {
+    CommandCals();
+  }
   else if (currentInput.startsWith("DISP ", 0))
   {
     CommandDisp();
@@ -523,9 +533,6 @@ void InterpretInput()
 
 void CommandCali()
 {
-  TelnetSay(F("Not yet implemented.\r\n"));
-  return;
-
   String idStr = currentInput.substring(5);
   byte id;
   if (idStr[0] == '0' && idStr.length() == 1)
@@ -537,10 +544,86 @@ void CommandCali()
     id = idStr.toInt();
     if (id == 0)
     {
-      TelnetSay(F("Unrecognized device id '%s'.\r\n"), idStr.c_str());
+      TelnetSay(F("Unable to parse device id.\r\n"));
+      return;
     }
   }
+
+  if (id < 0 || id >= config.numDevices)
+  {
+    TelnetSay(F("Unrecognized device id '%s'.\r\n"), idStr.c_str());
+    return;
+  }
+
   TelnetSay(F("Zeroing device..."));
+  while (digitalRead(devices[id].hallPin) == HIGH)
+  {
+    steppers[id]->step(1);
+  }
+  while (digitalRead(devices[id].hallPin) == LOW)
+  {
+    steppers[id]->step(1);
+  }
+  TelnetSay(F("Done.\r\n"));
+  TelnetSay(F("Running to start position..."));
+  steppers[id]->step(config.stepsPerRevolution - config.stepsPerFlap);
+  TelnetSay(F("Done.\r\n"));
+  TelnetSay(F("Starting calibration run in 5 seconds.\r\n"));
+  TelnetSay(F("Record number for first and second flap transitions.\r\n"));
+  delay(5000);
+  int hall = -1;
+  for (int i = 1; i <= config.stepsPerFlap * 2; ++i)
+  {
+    if (hall == -1 && digitalRead(devices[id].hallPin) == HIGH)
+    {
+      hall = i;
+    }
+
+    steppers[id]->step(1);
+    TelnetSay(F("%5d"), i);
+    if (i % 10 == 0)
+    {
+      TelnetSay(F("\r\n"));
+    }
+    delay(500);
+  }
+  TelnetSay(F("\r\n"));
+
+  TelnetSay(F("Detected hall value: %d\r\n"), hall);
+  TelnetSay(F("Use CALS command to set calibration values.\r\n"));
+
+  // set parameters to reset to hall sensor
+  pendingSteps[id] = -1;
+  currentFlap[id] = config.flapsPerRevolution - 1;
+  targetFlap[id] = 0;
+  lastHallReading[id] = HIGH;
+}
+
+void CommandCals()
+{
+  int id, first, hall, second;
+  int matches =
+      sscanf(currentInput.c_str(), "CALS %d %d %d %d", &id, &first, &hall, &second);
+  if (matches != 4)
+  {
+    TelnetSay(F("Invalid syntax.\r\n"));
+    return;
+  }
+  if (id < 0 || id > config.numDevices)
+  {
+    TelnetSay(F("Invalid device id.\r\n"));
+    return;
+  }
+  if (first > hall || hall > second || first == second)
+  {
+    TelnetSay(F("Invalid calibration values.\r\n"));
+    return;
+  }
+  int delta = second - first;
+  int desired = first + delta / 2;
+  int offset = desired - hall;
+  devices[id].hallOffset = offset;
+  TelnetSay(F("New hall offset set for device. Save configuration.\r\n"));
 }
 
 void CommandDisp()
